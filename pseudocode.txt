@@ -1,0 +1,69 @@
+# -------------------------------------#
+# CLIENT SIDE #
+# -------------------------------------#
+
+STATE = Connected
+
+EMITS Register
+WAIT until RECEIVE Registered
+
+IF RECEIVE Registered:
+    STATE = Registered
+
+WHILE STATE == Registered:
+    IF EMITS Call:
+        STATE = Calling
+        
+    ELSE IF RECEIVE Calling:
+        STATE = Calling
+
+    ELSE IF RECEIVE Answering:
+        STATE = Answering
+
+    ELSE IF RECEIVE Rejected:
+        STATE = Registered
+
+WHILE STATE == Calling:
+    WAIT until RECEIVE (Accepted | Rejected)
+    IF RECEIVE Accepted:
+        STATE = Talking
+        BREAK
+    
+    IF RECEIVE Rejected:
+        STATE = Registered
+        BREAK
+
+WHILE STATE == Answering:
+    BREAK       # Ending point: right before Accept / Reject
+
+# -------------------------------------#
+# SERVER SIDE #
+# -------------------------------------#
+
+STATE = Connected
+
+WAIT until RECEIVE Register
+EMITS Registered
+STATE = Registered
+
+WHILE STATE == Registered:
+    IF RECEIVE Call:
+        STATE = Calling
+    
+    ELSE IF RECEIVE Answer:
+        STATE = Answering
+
+WHILE STATE == Calling:
+    EMIT Calling
+
+    WAIT until RECEIVE (Accept | Reject)
+
+    BREAK # Ending point: right before Accept / Reject
+
+WHILE STATE == Answering:
+    EMIT Answering
+
+    WAIT until RECEIVE (Accept | Reject)
+
+    BREAK # Ending point: right before Accept / Reject
+    
