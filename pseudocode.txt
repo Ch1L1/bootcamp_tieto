@@ -2,68 +2,192 @@
 # CLIENT SIDE #
 # -------------------------------------#
 
-STATE = Connected
+handle_connected():
+    event = wait_for_event()    // emitting or receiving
 
-EMITS Register
-WAIT until RECEIVE Registered
+    IF event.emits(Register):
+        STATE = Connected   // wait for server reply
+    ELSE IF event.receive() == Registered:
+        STATE = Registered
+    ELSE:
+        { error }
 
-IF RECEIVE Registered:
-    STATE = Registered
+handle_registered():
+    event = wait_for_event()
 
-WHILE STATE == Registered:
-    IF EMITS Call:
-        STATE = Calling
+    IF event.emits(Call):
+        CONTINUE // wait for a server reply
         
-    ELSE IF RECEIVE Calling:
+    ELSE IF event.receive() == Calling:
         STATE = Calling
 
-    ELSE IF RECEIVE Answering:
+    ELSE IF event.receive() == Answering:
         STATE = Answering
+        
+    ELSE:
+        { error }
 
-    ELSE IF RECEIVE Rejected:
-        STATE = Registered
 
-WHILE STATE == Calling:
-    WAIT until RECEIVE (Accepted | Rejected)
-    IF RECEIVE Accepted:
+handle_calling():
+    event = wait_for_event()
+
+    IF event.receive() == Accepted:
         STATE = Talking
-        BREAK
-    
-    IF RECEIVE Rejected:
+    ELSE IF event.receive() == Rejected:
         STATE = Registered
-        BREAK
+    ELSE:
+        { error }
 
-WHILE STATE == Answering:
-    BREAK       # Ending point: right before Accept / Reject
+handle_answering():
+    event = wait_for_event()
+
+    IF event.receive() == Accepted:
+        STATE = Talking
+    ELSE IF event.receive() == Rejected:
+        STATE = Registered
+    ELSE IF event.emits(Accept) OR event.emits(Reject) :
+        CONTINUE
+    ELSE: 
+        { error }
+
+handle_talking():
+    event = wait_for_event()
+
+    IF event.emits(End):
+        CONTINUE // wait for a server to end connection between caller and callee
+    ELSE IF event.receive() == Ended:
+        STATE = Registered
+    ELSE:
+        { error }
+
+ClientSim():
+    STATE = Connected
+    while(true):
+        switch(STATE):
+            CASE Connected:
+                handle_connected()
+                BREAK
+            CASE Registered:
+                handle_registered()
+                BREAK
+            CASE Calling:
+                handle_calling()
+                BREAK
+            CASE Answering:
+                handle_answering()
+                BREAK
+            CASE Talking:
+                handle_talking()
+                BREAK
+        
 
 # -------------------------------------#
 # SERVER SIDE #
 # -------------------------------------#
 
-STATE = Connected
+handle_connected():
+    event = wait_for_event()    // emitting or receiving
 
-WAIT until RECEIVE Register
-EMITS Registered
-STATE = Registered
+    IF event.receive() == Register:
+        STATE = Registered_Init
+    ELSE:
+        { error }
 
-WHILE STATE == Registered:
-    IF RECEIVE Call:
+handle_registered_init():
+    event = wait_for_event()
+
+    IF event.emits(Registered):
+        STATE = Registered_Idle
+    ELSE:
+        { error }
+
+handle_registered_idle():
+    event = wait_for_event()
+
+    IF event.receive() == Call:
         STATE = Calling
-    
-    ELSE IF RECEIVE Answer:
+    ELSE IF event.receive() == Answer:
         STATE = Answering
+    ELSE:
+        { error }
 
-WHILE STATE == Calling:
-    EMIT Calling
+handle_registered_rejected():
+    event = wait_for_event()
 
-    WAIT until RECEIVE (Accept | Reject)
+    IF event.emits(Rejected):
+        STATE = Registered_Idle
+    ELSE:
+        { error }
 
-    BREAK # Ending point: right before Accept / Reject
+handle_answering():
+    event = wait_for_event()
 
-WHILE STATE == Answering:
-    EMIT Answering
+    IF event.receive() == Accept:
+        STATE = Start_talking
+    ELSE IF event.receive() == Reject:
+        STATE = Registered_Rejected
+    ELSE IF event.emits(Answering):
+        CONTINUE // wait for answer from client (accept/reject)
+    ELSE:
+        { error }
 
-    WAIT until RECEIVE (Accept | Reject)
+handle_calling():
+    event = wait_for_event()
 
-    BREAK # Ending point: right before Accept / Reject
-    
+    IF event.emits(Calling):
+        CONTINUE // 
+    ELSE IF event.emits(Answer):
+        CONTINUE //
+    ELSE IF event.receive() == Accept:
+        STATE = Start_talking
+    ELSE IF event.receive() == Reject:
+        STATE = Registered_Rejected
+    ELSE:
+        { error }
+
+handle_start_talking():
+    event = wait_for_event()
+
+    IF event.emits(Accepted):
+        CONTINUE // will inform clients that all of them Accepted
+    ELSE IF event.receive() == End:
+        STATE = End_talking // one of clients wants to cancel connection
+    ELSE: 
+        { error }
+
+handle_end_talking():
+    event = wait_for_event()
+
+    IF event.emits(Ended):
+        STATE = Registered_Idle
+    ELSE: 
+        { error }
+
+ServerSim():
+    STATE = Connected
+    WHILE(true):
+        SWITCH(STATE):
+            CASE Connected:
+                handle_connected()
+                BREAK
+            CASE Registered_Init:
+                handle_registered_init()
+                BREAK
+            CASE Registered_Idle:
+                handle_registered_idle()
+                BREAK
+            CASE Registered_Rejected:
+                handle_registered_rejected()
+                BREAK
+            CASE Calling:
+                handle_calling()
+                BREAK
+            CASE Answering:
+                handle_answering()
+                BREAK
+            CASE Start_talking:
+                handle_start_talking()
+                BREAK
+            CASE End_talking:
+                handle_end_talking()
+                BREAK
