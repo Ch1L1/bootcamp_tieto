@@ -1,0 +1,10 @@
+/home/tomas-homola/bootcamp/CallSim/build/CMakeFiles/edit_cache.dir
+/home/tomas-homola/bootcamp/CallSim/build/CMakeFiles/rebuild_cache.dir
+/home/tomas-homola/bootcamp/CallSim/build/proto/CMakeFiles/edit_cache.dir
+/home/tomas-homola/bootcamp/CallSim/build/proto/CMakeFiles/rebuild_cache.dir
+/home/tomas-homola/bootcamp/CallSim/build/Client/CMakeFiles/client.dir
+/home/tomas-homola/bootcamp/CallSim/build/Client/CMakeFiles/edit_cache.dir
+/home/tomas-homola/bootcamp/CallSim/build/Client/CMakeFiles/rebuild_cache.dir
+/home/tomas-homola/bootcamp/CallSim/build/Server/CMakeFiles/server.dir
+/home/tomas-homola/bootcamp/CallSim/build/Server/CMakeFiles/edit_cache.dir
+/home/tomas-homola/bootcamp/CallSim/build/Server/CMakeFiles/rebuild_cache.dir
