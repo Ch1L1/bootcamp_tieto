@@ -68,6 +68,7 @@ message StateTransition {
 
 message RegistrationRequest {
     Endpoint client = 1;
+    string transaction_id = 2;
 }
 
 message RegistrationResponse {
@@ -75,6 +76,8 @@ message RegistrationResponse {
     ClientState client_state = 2;
     ServerState server_state = 3;
     string message = 4;
+    string transaction_id = 5;
+    string rejection_reason = 6;
 }
 
 message CallIntent {
@@ -82,6 +85,7 @@ message CallIntent {
     Endpoint callee = 2;
     SessionDescription session = 3;
     string best_effort_topic = 4;
+    string transaction_id = 5;
 }
 
 message CallReply {
@@ -89,6 +93,8 @@ message CallReply {
     CallSignal signal = 2;
     SessionDescription session = 3;
     string narrative = 4;
+    string transaction_id = 5;
+    string rejection_reason = 6;
 }
 
 message AnswerRequest {
