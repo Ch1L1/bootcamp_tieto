@@ -1,29 +1,80 @@
 #include <iostream>
+#include <string>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <thread>
+#include <chrono>
 #include "Message.pb.h"
 
+using namespace callsim;
+
 int main() {
-    std::cout << "[Server] Starting up..." << std::endl;
+    ServerState current_state = SERVER_STATE_UNSPECIFIED;
+    std::cout << "[Server] State: SERVER_STATE_UNSPECIFIED (" << current_state << ")\n";
 
-    callsim::RegistrationRequest incoming_req;
-    incoming_req.set_transaction_id("tx-1001");
+    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     
-    auto* client_info = incoming_req.mutable_client();
-    client_info->set_id("client_01");
-    client_info->set_display_name("Alice");
+    int opt = 1;
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
-    std::cout << "[Server] Received RegistrationRequest from: " 
-              << incoming_req.client().display_name() << std::endl;
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_port = htons(8080);
+    address.sin_addr.s_addr = INADDR_ANY;
 
-    callsim::RegistrationResponse response;
-    response.set_signal(callsim::REGISTERED);
-    response.set_client_state(callsim::CLIENT_REGISTERED);
-    response.set_server_state(callsim::SERVER_REGISTERED_IDLE);
-    response.set_transaction_id(incoming_req.transaction_id());
-    response.set_message("Registration Successful");
+    bind(server_fd, (struct sockaddr*)&address, sizeof(address));
+    listen(server_fd, 3);
+    
+    std::cout << "[Server] Waiting for client to connect on port 8080...\n";
 
-    std::cout << "[Server] Sending RegistrationResponse. " 
-              << "New Client State: " << response.client_state() 
-              << ", New Server State: " << response.server_state() << std::endl;
+    int client_socket = accept(server_fd, nullptr, nullptr);
+    current_state = SERVER_CONNECTED;
+    std::cout << "[Server] State Transition -> SERVER_CONNECTED (" << current_state << ")\n";
 
+    char buffer[4096] = {0};
+
+    int bytes_read = read(client_socket, buffer, 4096);
+    RegistrationRequest reg_req;
+    reg_req.ParseFromArray(buffer, bytes_read);
+    
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+
+    RegistrationResponse reg_resp;
+    reg_resp.set_signal(REGISTERED);
+    reg_resp.set_client_state(CLIENT_REGISTERED);
+    reg_resp.set_server_state(SERVER_REGISTERED_IDLE);
+    
+    current_state = SERVER_REGISTERED_IDLE;
+    std::cout << "[Server] State Transition -> SERVER_REGISTERED_IDLE (" << current_state << ")\n";
+
+    std::string resp_str;
+    reg_resp.SerializeToString(&resp_str);
+    send(client_socket, resp_str.c_str(), resp_str.length(), 0);
+
+    bytes_read = read(client_socket, buffer, 4096);
+    CallIntent call_intent;
+    call_intent.ParseFromArray(buffer, bytes_read);
+    
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+
+    current_state = SERVER_CALLING;
+    std::cout << "[Server] State Transition -> SERVER_CALLING (" << current_state << ")\n";
+
+    CallReply call_reply;
+    call_reply.set_signal(CALLING);
+    call_reply.set_narrative("Ringing the callee...");
+    
+    std::string reply_str;
+    call_reply.SerializeToString(&reply_str);
+    send(client_socket, reply_str.c_str(), reply_str.length(), 0);
+
+    std::cout << "[Server] Call is ringing... Press Ctrl+C to terminate.\n";
+    while(true) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+
+    close(client_socket);
+    close(server_fd);
     return 0;
 }
