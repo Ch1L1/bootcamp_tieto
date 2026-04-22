@@ -1,15 +1,20 @@
-include(FindProtobuf)
-find_package(Protobuf REQUIRED)
+# CallSim/proto/CMakeLists.txt
+find_program(PROTOC_EXECUTABLE protoc REQUIRED)
 
-include_directories(${PROTOBUF_INCLUDE_DIRS})
+set(PROTO_SRC "${CMAKE_CURRENT_BINARY_DIR}/Message.pb.cc")
+set(PROTO_HDR "${CMAKE_CURRENT_BINARY_DIR}/Message.pb.h")
 
-protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS Message.proto)
-
-add_library(callsim_proto STATIC 
-    ${PROTO_SRCS} 
-    ${PROTO_HDRS}
+add_custom_command(
+    OUTPUT ${PROTO_SRC} ${PROTO_HDR}
+    COMMAND ${PROTOC_EXECUTABLE}
+    ARGS --cpp_out="${CMAKE_CURRENT_BINARY_DIR}" 
+         -I"${CMAKE_CURRENT_SOURCE_DIR}" 
+         "${CMAKE_CURRENT_SOURCE_DIR}/Message.proto"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/Message.proto"
 )
 
-target_link_libraries(callsim_proto PUBLIC ${Protobuf_LIBRARIES})
+add_library(callsim_proto ${PROTO_SRC} ${PROTO_HDR})
+
+target_link_libraries(callsim_proto PUBLIC protobuf::libprotobuf)
 
 target_include_directories(callsim_proto PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
