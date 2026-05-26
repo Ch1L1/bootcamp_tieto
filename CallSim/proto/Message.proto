@@ -1,0 +1,135 @@
+syntax = "proto3";
+
+package callsim;
+
+enum CallSignal {
+    CALL_SIGNAL_UNSPECIFIED = 0;
+    REGISTER = 1;
+    REGISTERED = 2;
+    CALL = 3;
+    CALLING = 4;
+    ANSWER = 5;
+    ANSWERING = 6;
+    ACCEPT = 7;
+    ACCEPTED = 8;
+    REJECT = 9;
+    REJECTED = 10;
+    END = 11;
+    ENDED = 12;
+}
+
+enum ClientState {
+    CLIENT_STATE_UNSPECIFIED = 0;
+    CLIENT_CONNECTED = 1;
+    CLIENT_REGISTERED = 2;
+    CLIENT_CALLING = 3;
+    CLIENT_ANSWERING = 4;
+    CLIENT_TALKING = 5;
+}
+
+enum ServerState {
+    SERVER_STATE_UNSPECIFIED = 0;
+    SERVER_CONNECTED = 1;
+    SERVER_REGISTERED_INIT = 2;
+    SERVER_REGISTERED_IDLE = 3;
+    SERVER_REGISTERED_REJECTED = 4;
+    SERVER_CALLING = 5;
+    SERVER_ANSWERING = 6;
+    SERVER_START_TALKING = 7;
+    SERVER_END_TALKING = 8;
+}
+
+message Endpoint {
+    string id = 1;
+    string display_name = 2;
+    string client_version = 3;
+    repeated string capabilities = 4;
+}
+
+message SessionMetadata {
+    map<string, string> entries = 1;
+}
+
+message SessionDescription {
+    string session_id = 1;
+    repeated Endpoint participants = 2;
+    SessionMetadata metadata = 3;
+    string topic = 4;
+}
+
+message StateTransition {
+    CallSignal trigger = 1;
+    ClientState from_client = 2;
+    ServerState from_server = 3;
+    ClientState to_client = 4;
+    ServerState to_server = 5;
+    string reason = 6;
+}
+
+message RegistrationRequest {
+    Endpoint client = 1;
+    string transaction_id = 2;
+}
+
+message RegistrationResponse {
+    CallSignal signal = 1;
+    ClientState client_state = 2;
+    ServerState server_state = 3;
+    string message = 4;
+    string transaction_id = 5;
+    string rejection_reason = 6;
+}
+
+message CallIntent {
+    Endpoint caller = 1;
+    Endpoint callee = 2;
+    SessionDescription session = 3;
+    string best_effort_topic = 4;
+    string transaction_id = 5;
+}
+
+message CallReply {
+    string session_id = 1;
+    CallSignal signal = 2;
+    SessionDescription session = 3;
+    string narrative = 4;
+    string transaction_id = 5;
+    string rejection_reason = 6;
+}
+
+message AnswerRequest {
+    string session_id = 1;
+    Endpoint responder = 2;
+    bool accept = 3;
+    string notes = 4;
+}
+
+message HangupNotice {
+    string session_id = 1;
+    Endpoint initiator = 2;
+    CallSignal signal = 3;
+    string reason = 4;
+}
+
+message CallEvent {
+    CallSignal signal = 1;
+    string session_id = 2;
+    Endpoint emitter = 3;
+    Endpoint receiver = 4;
+    SessionDescription session = 5;
+    string context = 6;
+}
+
+message StateMachineSnapshot {
+    ClientState client_state = 1;
+    ServerState server_state = 2;
+    CallSignal last_signal = 3;
+    repeated StateTransition history = 4;
+    string narrative = 5;
+}
+
+message ProtocolError {
+    CallSignal failed_signal = 1;
+    string description = 2;
+    repeated CallSignal next_allowed = 3;
+}
