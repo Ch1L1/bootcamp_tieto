@@ -9,11 +9,12 @@ usage() {
     echo "Usage: $0 [option]"
     echo ""
     echo "Options:"
-    echo "  --build        Configure and compile the project"
-    echo "  --run-client   Run the client executable"
-    echo "  --run-server   Run the server executable"
-    echo "  --clean        Remove the build directory"
-    echo "  --help         Show this help message"
+    echo "  --build              Configure and compile the project"
+    echo "  --run-client [name]  Run the client executable (optional: assign unique ID)"
+    echo "  --run-server         Run the server executable"
+    echo "  --test               Run all Google Test suites via CTest"
+    echo "  --clean              Remove the build directory"
+    echo "  --help               Show this help message"
 }
 
 build() {
@@ -24,21 +25,32 @@ build() {
 }
 
 run_client() {
-    if [[ ! -f "$BUILD_DIR/Client/client" ]]; then
+    if [[ ! -f "$BUILD_DIR/Client/client_bin" ]]; then
         echo "Error: client binary not found. Run '$0 --build' first."
         exit 1
     fi
-    echo "==> Starting client..."
-    "$BUILD_DIR/Client/client"
+    
+    local client_id="${1:-client_default}"
+    echo "==> Starting client with ID: $client_id..."
+    "$BUILD_DIR/Client/client_bin" "$client_id"
 }
 
 run_server() {
-    if [[ ! -f "$BUILD_DIR/Server/server" ]]; then
+    if [[ ! -f "$BUILD_DIR/Server/server_bin" ]]; then
         echo "Error: server binary not found. Run '$0 --build' first."
         exit 1
     fi
     echo "==> Starting server..."
-    "$BUILD_DIR/Server/server"
+    "$BUILD_DIR/Server/server_bin"
+}
+
+run_tests() {
+    if [[ ! -d "$BUILD_DIR" ]]; then
+        echo "Error: Build directory not found. Run '$0 --build' first."
+        exit 1
+    fi
+    echo "==> Running automated test suites..."
+    cd "$BUILD_DIR" && ctest --output-on-failure
 }
 
 clean() {
@@ -47,15 +59,16 @@ clean() {
     echo "==> Done."
 }
 
-if [[ $# -ne 1 ]]; then
+if [[ $# -lt 1 || $# -gt 2 ]]; then
     usage
     exit 1
 fi
 
 case "$1" in
     --build)       build ;;
-    --run-client)  run_client ;;
+    --run-client)  run_client "$2" ;;
     --run-server)  run_server ;;
+    --test)        run_tests ;;
     --clean)       clean ;;
     --help)        usage ;;
     *)
