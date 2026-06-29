@@ -20,6 +20,17 @@ public:
                 return;
             }
         }
+        else if (current_state_ == callsim::CLIENT_REGISTERED) {
+            if (signal == callsim::CALL && target_state == callsim::CLIENT_CALLING) {
+                transition_to(callsim::CLIENT_CALLING, "CLIENT_CALLING");
+                return;
+            }
+            
+            if (signal == callsim::CALL && target_state == callsim::CLIENT_ANSWERING) {
+                transition_to(callsim::CLIENT_ANSWERING, "CLIENT_ANSWERING");
+                return;
+            }
+        }
         throw std::runtime_error("FSM Violation: Invalid client state transition triggered!");
     }
 

@@ -17,5 +17,13 @@ public:
         return true;
     }
 
+    std::shared_ptr<ClientSession> get_client(const std::string& id) {
+        auto it = active_clients_.find(id);
+        if (it != active_clients_.end()) {
+            return it->second;
+        }
+        return nullptr;
+    }
+
     size_t total_registered() const { return active_clients_.size(); }
 };
