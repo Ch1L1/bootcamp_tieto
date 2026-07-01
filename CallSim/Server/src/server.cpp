@@ -69,7 +69,10 @@ private:
     void send_response(const callsim::RegistrationResponse& response) {
         auto self(shared_from_this());
         write_buffer_.resize(response.ByteSizeLong());
-        response.SerializeToArray(write_buffer_.data(), write_buffer_.size());
+        if (!response.SerializeToArray(write_buffer_.data(), write_buffer_.size())) {
+            std::cerr << "[Server] Failed to serialize RegistrationResponse!\n";
+            return;
+        }
 
         uint32_t len = write_buffer_.size();
         std::vector<boost::asio::const_buffer> buffers;

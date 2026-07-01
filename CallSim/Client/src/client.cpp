@@ -30,7 +30,10 @@ private:
         endpoint->set_client_version("1.0.0");
 
         std::vector<char> write_buf(request.ByteSizeLong());
-        request.SerializeToArray(write_buf.data(), write_buf.size());
+        if (!request.SerializeToArray(write_buf.data(), write_buf.size())) {
+            std::cerr << "[" << client_id_ << "] Failed to serialize RegistrationRequest!\n";
+            return;
+        }
         uint32_t len = write_buf.size();
 
         std::vector<boost::asio::const_buffer> buffers;
