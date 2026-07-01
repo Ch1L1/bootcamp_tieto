@@ -107,8 +107,10 @@ private:
                 ring_alert.set_session_id("sess_" + caller + "_" + callee);
 
                 std::string payload;
-                ring_alert.SerializeToString(&payload);
-                
+                if (!ring_alert.SerializeToString(&payload)) {
+                    std::cerr << "[Server] Failed to serialize CallEvent!\n";
+                    return;
+                }
                 target_session->deliver(payload);
                 std::cout << "[Server] Successfully forwarded RING to " << callee << "!\n";
             } else {
