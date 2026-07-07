@@ -2,9 +2,9 @@ name: CallSim Automation
 
 on:
   push:
-    branches: [ "main", "feature/*" ]
+    branches: [ "master", "feature/*" ]
   pull_request:
-    branches: [ "main", "feature/*" ]
+    branches: [ "master", "feature/*" ]
 
 jobs:
   build-and-test:
