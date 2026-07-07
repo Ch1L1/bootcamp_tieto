@@ -76,7 +76,7 @@ private:
         if (response.ParseFromArray(read_buf_.data(), read_buf_.size())) {
             std::cout << "[" << client_id_ << "] Received response: " << response.message() << "\n";
             
-            fsm_.handle_transition(callsim::REGISTERED, response.client_state());
+            fsm_.handle_transition(callsim::REGISTERED);
             std::cout << "[" << client_id_ << "] Registered state finalized.\n";
 
             waitForIncomingSignals();
