@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <arpa/inet.h>
 #include <boost/asio.hpp>
 #include "Message.pb.h"
 #include "ClientStateMachine.hpp"
@@ -36,13 +37,15 @@ private:
         }
         uint32_t len = write_buf.size();
 
+        tx_len_network_ = htonl(len);
+
         std::vector<boost::asio::const_buffer> buffers;
-        buffers.push_back(boost::asio::buffer(&len, sizeof(len)));
+        buffers.push_back(boost::asio::buffer(&tx_len_network_, sizeof(tx_len_network_)));
         buffers.push_back(boost::asio::buffer(write_buf));
 
         auto self(shared_from_this());
         boost::asio::async_write(socket_, buffers,
-            [self](boost::system::error_code ec, std::size_t) {
+            [self, write_buf](boost::system::error_code ec, std::size_t) {
                 if (!ec) {
                     std::cout << "[" << self->client_id_ << "] Registration request frame sent.\n";
                     self->read_response_length();
@@ -52,9 +55,10 @@ private:
 
     void read_response_length() {
         auto self(shared_from_this());
-        boost::asio::async_read(socket_, boost::asio::buffer(&resp_len_, sizeof(resp_len_)),
+        boost::asio::async_read(socket_, boost::asio::buffer(&resp_len_network_, sizeof(resp_len_network_)),
             [self](boost::system::error_code ec, std::size_t) {
                 if (!ec) {
+                    self->resp_len_ = ntohl(self->resp_len_network_);
                     self->read_response_body();
                 }
             });
@@ -98,6 +102,9 @@ private:
     tcp::socket socket_;
     std::string client_id_;
     ClientStateMachine fsm_;
+
+    uint32_t tx_len_network_ = 0;
+    uint32_t resp_len_network_ = 0;
     uint32_t resp_len_ = 0;
     std::vector<char> read_buf_;
     char dummy_byte_;

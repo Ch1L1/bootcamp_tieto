@@ -2,6 +2,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <arpa/inet.h>
 #include <boost/asio.hpp>
 #include "Message.pb.h"
 #include "ClientSession.hpp"
@@ -21,9 +22,10 @@ public:
 private:
     void read_message_length() {
         auto self(shared_from_this());
-        boost::asio::async_read(socket_, boost::asio::buffer(&body_length_, sizeof(body_length_)),
+        boost::asio::async_read(socket_, boost::asio::buffer(&body_length_network_, sizeof(body_length_network_)),
             [self](boost::system::error_code ec, std::size_t) {
                 if (!ec) {
+                    self->body_length_ = ntohl(self->body_length_network_);
                     self->read_message_body();
                 }
             });
@@ -75,12 +77,13 @@ private:
         }
 
         uint32_t len = write_buffer_.size();
+        tx_len_network_ = htonl(len);
         std::vector<boost::asio::const_buffer> buffers;
-        buffers.push_back(boost::asio::buffer(&len, sizeof(len)));
+        buffers.push_back(boost::asio::buffer(&tx_len_network_, sizeof(tx_len_network_)));
         buffers.push_back(boost::asio::buffer(write_buffer_));
 
         boost::asio::async_write(socket_, buffers,
-            [self](boost::system::error_code ec, std::size_t) {
+            [self, write_buffer = write_buffer_](boost::system::error_code ec, std::size_t) {
                 if (!ec) {
                     std::cout << "[Server] Response sent. Connection safe.\n";
                     
@@ -93,6 +96,8 @@ private:
     std::shared_ptr<ClientRegistry> registry_;
     std::shared_ptr<ClientSession> fsm_context_;
     uint32_t body_length_ = 0;
+    uint32_t body_length_network_ = 0;
+    uint32_t tx_len_network_ = 0;
     std::vector<char> read_buffer_;
     std::vector<char> write_buffer_;
 };
