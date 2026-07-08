@@ -49,9 +49,11 @@ private:
     void deliver_payload(const std::string& payload) {
         auto self(shared_from_this());
         auto buffer_ptr = std::make_shared<std::vector<char>>(payload.begin(), payload.end());
-        uint32_t len = buffer_ptr->size();
+        uint32_t len_network = htonl(static_cast<uint32_t>(buffer_ptr->size()));
         
-        buffer_ptr->insert(buffer_ptr->begin(), reinterpret_cast<char*>(&len), reinterpret_cast<char*>(&len) + sizeof(len));
+        buffer_ptr->insert(buffer_ptr->begin(), 
+                           reinterpret_cast<char*>(&len_network), 
+                           reinterpret_cast<char*>(&len_network) + sizeof(len_network));
 
         boost::asio::async_write(socket_, boost::asio::buffer(*buffer_ptr),
             [self, buffer_ptr](boost::system::error_code ec, std::size_t) {

@@ -47,6 +47,8 @@ public:
     }
 };
 
+class StateCalling;
+class StateAnswering;
 
 class StateConnected : public ClientState {
 public:
@@ -59,8 +61,24 @@ class StateRegistered : public ClientState {
 public:
     callsim::ClientState get_enum_state() const override { return callsim::CLIENT_REGISTERED; }
     std::string get_name() const override { return "CLIENT_REGISTERED"; }
+    void handle_signal(callsim::CallSignal signal, ClientStateMachine& fsm) override;
+};
+
+class StateCalling : public ClientState {
+public:
+    callsim::ClientState get_enum_state() const override { return callsim::CLIENT_CALLING; }
+    std::string get_name() const override { return "CLIENT_CALLING"; }
     void handle_signal(callsim::CallSignal signal, ClientStateMachine& fsm) override {
-        throw std::runtime_error("Invalid signal for REGISTERED state!");
+        throw std::runtime_error("FSM Violation: Signal handling in CALLING state not implemented yet!");
+    }
+};
+
+class StateAnswering : public ClientState {
+public:
+    callsim::ClientState get_enum_state() const override { return callsim::CLIENT_ANSWERING; }
+    std::string get_name() const override { return "CLIENT_ANSWERING"; }
+    void handle_signal(callsim::CallSignal signal, ClientStateMachine& fsm) override {
+        throw std::runtime_error("FSM Violation: Signal handling in ANSWERING state not implemented yet!");
     }
 };
 
@@ -73,6 +91,14 @@ inline void StateConnected::handle_signal(callsim::CallSignal signal, ClientStat
     if (signal == callsim::REGISTERED) {
         fsm.set_state(std::make_shared<StateRegistered>());
     } else {
-        throw std::runtime_error("Invalid signal for CONNECTED state!");
+        throw std::runtime_error("FSM Violation: Invalid signal for CONNECTED state!");
+    }
+}
+
+inline void StateRegistered::handle_signal(callsim::CallSignal signal, ClientStateMachine& fsm) {
+    if (signal == callsim::CALL) {
+        fsm.set_state(std::make_shared<StateCalling>());
+    } else {
+        throw std::runtime_error("FSM Violation: Invalid signal for REGISTERED state!");
     }
 }

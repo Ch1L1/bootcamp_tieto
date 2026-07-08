@@ -14,17 +14,16 @@ TEST(ClientFSM, AllowedTransitionSucceeds) {
 
 TEST(ClientFSMTests, OutgoingCallSuccess) {
     ClientStateMachine fsm;
-    fsm.handle_transition(callsim::REGISTERED, callsim::CLIENT_REGISTERED);
-    
-    fsm.handle_transition(callsim::CALL, callsim::CLIENT_CALLING);
+    fsm.handle_transition(callsim::REGISTERED);
+    fsm.handle_transition(callsim::CALL);
     EXPECT_EQ(fsm.get_current_state(), callsim::CLIENT_CALLING);
 }
 
 TEST(ClientFSMTests, IncomingCallSuccess) {
     ClientStateMachine fsm;
-    fsm.handle_transition(callsim::REGISTERED, callsim::CLIENT_REGISTERED);
-    
-    fsm.handle_transition(callsim::CALL, callsim::CLIENT_ANSWERING);
+    fsm.handle_transition(callsim::REGISTERED);
+
+    fsm.handle_transition(callsim::CALL);
     EXPECT_EQ(fsm.get_current_state(), callsim::CLIENT_ANSWERING);
 }
 

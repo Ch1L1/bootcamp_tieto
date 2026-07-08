@@ -50,7 +50,7 @@ private:
             self->send_message(write_buf);
         });
 
-        fsm_.handle_transition(callsim::CALL, callsim::CLIENT_CALLING);
+        fsm_.handle_transition(callsim::CALL);
         std::cout << "==> Dialing " << callee_id << "... Waiting for server routing.\n";
     }
 
@@ -58,9 +58,11 @@ private:
         auto self(shared_from_this());
         
         auto buffer_ptr = std::make_shared<std::vector<char>>(write_buf);
-        uint32_t len = buffer_ptr->size();
+        uint32_t len_network = htonl(static_cast<uint32_t>(buffer_ptr->size()));
         
-        buffer_ptr->insert(buffer_ptr->begin(), reinterpret_cast<char*>(&len), reinterpret_cast<char*>(&len) + sizeof(len));
+        buffer_ptr->insert(buffer_ptr->begin(),
+            reinterpret_cast<char*>(&len_network), 
+            reinterpret_cast<char*>(&len_network) + sizeof(len_network));
 
         boost::asio::async_write(socket_, boost::asio::buffer(*buffer_ptr),
             [self, buffer_ptr](boost::system::error_code ec, std::size_t) {
@@ -140,9 +142,11 @@ private:
 
     void read_message_length() {
         auto self(shared_from_this());
-        boost::asio::async_read(socket_, boost::asio::buffer(&resp_len_, sizeof(resp_len_)),
+        boost::asio::async_read(socket_, boost::asio::buffer(&resp_len_network_, sizeof(resp_len_network_)),
             [self](boost::system::error_code ec, std::size_t) {
-                if (!ec) {
+                if (!ec) {  
+                    self->resp_len_ = ntohl(self->resp_len_network_);
+                    
                     self->read_message_body();
                 } else {
                     std::cout << "\n[" << self->client_id_ << "] Connection lost.\n";
@@ -167,7 +171,7 @@ private:
         if (ring_alert.ParseFromArray(read_buf_.data(), read_buf_.size())) {
             
             if (ring_alert.signal() == callsim::CALL) {
-                fsm_.handle_transition(callsim::CALL, callsim::CLIENT_ANSWERING);
+                fsm_.handle_transition(callsim::CALL);
                 
                 std::cout << "\n\n======================================\n";
                 std::cout << " RING! Incoming call from: " << ring_alert.emitter().id() << "\n";
