@@ -4,8 +4,11 @@
 TEST(ClientFSMTests, SuccessfulRegistration) {
     ClientStateMachine fsm;
     EXPECT_EQ(fsm.get_current_state(), callsim::CLIENT_CONNECTED);
-    
-    fsm.handle_transition(callsim::REGISTERED, callsim::CLIENT_REGISTERED);
+}
+
+TEST(ClientFSM, AllowedTransitionSucceeds) {
+    ClientStateMachine fsm;
+    EXPECT_NO_THROW(fsm.handle_transition(callsim::REGISTERED));
     EXPECT_EQ(fsm.get_current_state(), callsim::CLIENT_REGISTERED);
 }
 
@@ -27,6 +30,5 @@ TEST(ClientFSMTests, IncomingCallSuccess) {
 
 TEST(ClientFSMTests, InvalidTransitionThrows) {
     ClientStateMachine fsm;
-    
-    EXPECT_THROW(fsm.handle_transition(callsim::CALL, callsim::CLIENT_CALLING), std::runtime_error);
+    EXPECT_THROW(fsm.handle_transition(callsim::ANSWER), std::runtime_error);
 }

@@ -1,37 +1,41 @@
 #pragma once
 #include <iostream>
+#include <memory>
 #include <vector>
 #include <string>
 #include <stdexcept>
 #include "Message.pb.h"
 
+class ClientStateMachine;
+
+class ClientState {
+public:
+    virtual ~ClientState() = default;
+    virtual void handle_signal(callsim::CallSignal signal, ClientStateMachine& fsm) = 0;
+    virtual callsim::ClientState get_enum_state() const = 0;
+    virtual std::string get_name() const = 0;
+};
+
 class ClientStateMachine {
 private:
-    callsim::ClientState current_state_ = callsim::CLIENT_CONNECTED;
-    std::vector<std::string> state_history_ = {"CLIENT_CONNECTED"};
+    std::shared_ptr<ClientState> current_state_;
+    std::vector<std::string> state_history_;
 
 public:
-    callsim::ClientState get_current_state() const { return current_state_; }
+    ClientStateMachine();
 
-    void handle_transition(callsim::CallSignal signal, callsim::ClientState target_state) {
-        if (current_state_ == callsim::CLIENT_CONNECTED) {
-            if (signal == callsim::REGISTERED && target_state == callsim::CLIENT_REGISTERED) {
-                transition_to(callsim::CLIENT_REGISTERED, "CLIENT_REGISTERED");
-                return;
-            }
-        }
-        else if (current_state_ == callsim::CLIENT_REGISTERED) {
-            if (signal == callsim::CALL && target_state == callsim::CLIENT_CALLING) {
-                transition_to(callsim::CLIENT_CALLING, "CLIENT_CALLING");
-                return;
-            }
-            
-            if (signal == callsim::CALL && target_state == callsim::CLIENT_ANSWERING) {
-                transition_to(callsim::CLIENT_ANSWERING, "CLIENT_ANSWERING");
-                return;
-            }
-        }
-        throw std::runtime_error("FSM Violation: Invalid client state transition triggered!");
+    callsim::ClientState get_current_state() const {
+        return current_state_->get_enum_state();
+    }
+
+    void set_state(std::shared_ptr<ClientState> new_state) {
+        current_state_ = new_state;
+        state_history_.push_back(current_state_->get_name());
+        print_history();
+    }
+
+    void handle_transition(callsim::CallSignal signal) {
+        current_state_->handle_signal(signal, *this);
     }
 
     void print_history() const {
@@ -41,11 +45,34 @@ public:
         }
         std::cout << "\n";
     }
+};
 
-private:
-    void transition_to(callsim::ClientState next_state, const std::string& state_name) {
-        current_state_ = next_state;
-        state_history_.push_back(state_name);
-        print_history();
+
+class StateConnected : public ClientState {
+public:
+    callsim::ClientState get_enum_state() const override { return callsim::CLIENT_CONNECTED; }
+    std::string get_name() const override { return "CLIENT_CONNECTED"; }
+    void handle_signal(callsim::CallSignal signal, ClientStateMachine& fsm) override;
+};
+
+class StateRegistered : public ClientState {
+public:
+    callsim::ClientState get_enum_state() const override { return callsim::CLIENT_REGISTERED; }
+    std::string get_name() const override { return "CLIENT_REGISTERED"; }
+    void handle_signal(callsim::CallSignal signal, ClientStateMachine& fsm) override {
+        throw std::runtime_error("Invalid signal for REGISTERED state!");
     }
 };
+
+inline ClientStateMachine::ClientStateMachine() {
+    current_state_ = std::make_shared<StateConnected>();
+    state_history_.push_back(current_state_->get_name());
+}
+
+inline void StateConnected::handle_signal(callsim::CallSignal signal, ClientStateMachine& fsm) {
+    if (signal == callsim::REGISTERED) {
+        fsm.set_state(std::make_shared<StateRegistered>());
+    } else {
+        throw std::runtime_error("Invalid signal for CONNECTED state!");
+    }
+}
