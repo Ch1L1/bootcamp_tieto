@@ -1,5 +1,9 @@
-add_executable(client src/client.cpp)
+include_directories(inc ${CMAKE_BINARY_DIR}/proto)
 
-target_include_directories(client PRIVATE inc)
+add_executable(client_bin src/client.cpp)
+target_link_libraries(client_bin PRIVATE proto_lib gtest gtest_main)
 
-target_link_libraries(client PRIVATE callsim_proto)
+add_executable(client_tests test/ClientTests.cpp)
+target_link_libraries(client_tests PRIVATE proto_lib gtest gtest_main Threads::Threads)
+
+add_test(NAME ClientFSMTests COMMAND client_tests)

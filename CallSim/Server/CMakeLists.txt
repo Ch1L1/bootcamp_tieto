@@ -1,5 +1,9 @@
-add_executable(server src/server.cpp)
+include_directories(inc ${CMAKE_BINARY_DIR}/proto)
 
-target_include_directories(server PRIVATE inc)
+add_executable(server_bin src/server.cpp)
+target_link_libraries(server_bin PRIVATE proto_lib gtest gtest_main)
 
-target_link_libraries(server PRIVATE callsim_proto)
+add_executable(server_tests test/ServerTests.cpp)
+target_link_libraries(server_tests PRIVATE proto_lib gtest gtest_main Threads::Threads)
+
+add_test(NAME ServerFSMTests COMMAND server_tests)

@@ -14,7 +14,7 @@ CallSim/
 ├── callsim.sh       # Helper script for building and running
 └── CMakeLists.txt   # Root CMake configuration
 ```
-## Prerequisites
+### Prerequisites
 - CMake (>= 3.10)
 
 - C++17-capable compiler
@@ -26,28 +26,26 @@ CallSim/
 ```Bash
 brew install cmake protobuf
 ```
-
 **Ubuntu/Debian Installation (via APT):**
-```sh
+```Bash
 sudo apt update && sudo apt install -y build-essential cmake libprotobuf-dev protobuf-compiler
 ```
 ## Quick Start
 
 ```Bash
-# Build the project (Generates C++ API from .proto and compiles)
+# Build the project
 ./callsim.sh --build
 
-# Run the server sanity check
+# Run the server (Starts listening on localhost:8080)
 ./callsim.sh --run-server
 
-# Run the client sanity check (Run in a separate terminal)
+# Run the client
 ./callsim.sh --run-client
 
 # Remove all build artifacts
 ./callsim.sh --clean
 ```
-## Manual Commands
-If you prefer to build manually without the helper script:
+**Manual Commands**
 
 ```Bash
 # Configure and build
