@@ -23,7 +23,7 @@ TEST(ClientFSMTests, IncomingCallSuccess) {
     ClientStateMachine fsm;
     fsm.handle_transition(callsim::REGISTERED);
 
-    fsm.handle_transition(callsim::CALL);
+    fsm.handle_transition(callsim::ANSWERING);
     EXPECT_EQ(fsm.get_current_state(), callsim::CLIENT_ANSWERING);
 }
 

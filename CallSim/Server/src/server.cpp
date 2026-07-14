@@ -119,6 +119,21 @@ private:
                 std::cout << "[Server] Successfully forwarded RING to " << callee << "!\n";
             } else {
                 std::cout << "[Server] Routing Failed: " << callee << " is not registered.\n";
+                
+                auto caller_session = registry_->get_client(caller);
+                if (caller_session) {
+                    callsim::CallEvent rejection;
+                    rejection.set_signal(callsim::REJECTED);
+                    rejection.mutable_emitter()->set_id(callee);
+                    rejection.mutable_receiver()->set_id(caller);
+                    rejection.set_session_id("sess_" + caller + "_" + callee);
+                    
+                    std::string payload;
+                    if (rejection.SerializeToString(&payload)) {
+                        caller_session->deliver(payload);
+                        std::cout << "[Server] Notified " << caller << " that " << callee << " is unavailable.\n";
+                    }
+                }
             }
         }
         read_message_length();

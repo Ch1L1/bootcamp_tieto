@@ -98,6 +98,8 @@ inline void StateConnected::handle_signal(callsim::CallSignal signal, ClientStat
 inline void StateRegistered::handle_signal(callsim::CallSignal signal, ClientStateMachine& fsm) {
     if (signal == callsim::CALL) {
         fsm.set_state(std::make_shared<StateCalling>());
+    } else if (signal == callsim::ANSWERING) {
+        fsm.set_state(std::make_shared<StateAnswering>());
     } else {
         throw std::runtime_error("FSM Violation: Invalid signal for REGISTERED state!");
     }
