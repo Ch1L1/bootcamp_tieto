@@ -1,0 +1,31 @@
+name: CallSim Automation
+
+on:
+  push:
+    branches: [ "master", "feature/*" ]
+  pull_request:
+    branches: [ "master", "feature/*" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check out repository code
+      uses: actions/checkout@v4
+
+    - name: Install C++ Infrastructure
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential protobuf-compiler libprotobuf-dev libboost-all-dev
+
+    - name: Configure CMake for CallSim
+      run: cmake -S CallSim -B CallSim/build_ci
+
+    - name: Compile CallSim Binaries
+      run: cmake --build CallSim/build_ci
+
+    - name: Run Automated Google Test Suites
+      run: |
+        cd CallSim/build_ci
+        ctest --output-on-failure
