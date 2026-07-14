@@ -209,6 +209,12 @@ private:
         if (response.ParseFromArray(read_buf_.data(), read_buf_.size())) {
             std::cout << "[" << client_id_ << "] " << response.message() << "\n";
             
+            if (response.signal() == callsim::REJECTED) {
+                std::cout << "[ERROR] Registration rejected. Disconnecting...\n";
+                socket_.close();
+                return;
+            }
+            
             fsm_.handle_transition(callsim::REGISTERED);
             std::cout << "[" << client_id_ << "] Registered.\n";
             print_help();

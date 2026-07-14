@@ -78,7 +78,19 @@ private:
                 self->deliver_payload(payload);
             });
 
-            registry_->register_client(fsm_context_);
+            bool registered = registry_->register_client(fsm_context_);
+            if (!registered) {
+                std::cout << "[Server] Registration rejected: Client ID '" << request.client().id() << "' already registered.\n";
+                
+                callsim::RegistrationResponse response;
+                response.set_signal(callsim::REJECTED);
+                response.set_client_state(callsim::CLIENT_CONNECTED);
+                response.set_server_state(callsim::SERVER_CONNECTED);
+                response.set_message("Registration failed: Client ID already in use. Please use a different ID.");
+                response.set_transaction_id(request.transaction_id());
+                send_response(response);
+                return;
+            }
 
             callsim::RegistrationResponse response;
             response.set_signal(callsim::REGISTERED);

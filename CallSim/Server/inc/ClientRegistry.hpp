@@ -13,6 +13,10 @@ public:
         if (session->get_id().empty() || session->get_state() != callsim::SERVER_REGISTERED_IDLE) {
             return false;
         }
+        // Check if client ID already registered
+        if (active_clients_.find(session->get_id()) != active_clients_.end()) {
+            return false;  // Duplicate ID
+        }
         active_clients_[session->get_id()] = session;
         return true;
     }
