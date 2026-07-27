@@ -69,7 +69,11 @@ public:
     callsim::ClientState get_enum_state() const override { return callsim::CLIENT_CALLING; }
     std::string get_name() const override { return "CLIENT_CALLING"; }
     void handle_signal(callsim::CallSignal signal, ClientStateMachine& fsm) override {
-        throw std::runtime_error("FSM Violation: Signal handling in CALLING state not implemented yet!");
+        if (signal == callsim::REJECTED || signal == callsim::ACCEPTED) {
+            fsm.set_state(std::make_shared<StateRegistered>());
+        } else {
+            throw std::runtime_error("FSM Violation: Invalid signal for CALLING state!");
+        }
     }
 };
 
@@ -78,7 +82,11 @@ public:
     callsim::ClientState get_enum_state() const override { return callsim::CLIENT_ANSWERING; }
     std::string get_name() const override { return "CLIENT_ANSWERING"; }
     void handle_signal(callsim::CallSignal signal, ClientStateMachine& fsm) override {
-        throw std::runtime_error("FSM Violation: Signal handling in ANSWERING state not implemented yet!");
+        if (signal == callsim::ACCEPTED || signal == callsim::REJECTED) {
+            fsm.set_state(std::make_shared<StateRegistered>());
+        } else {
+            throw std::runtime_error("FSM Violation: Invalid signal for ANSWERING state!");
+        }
     }
 };
 

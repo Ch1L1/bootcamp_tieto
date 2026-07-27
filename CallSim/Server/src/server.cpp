@@ -27,6 +27,9 @@ private:
                 if (!ec) {
                     self->body_length_ = ntohl(self->body_length_network_);
                     self->read_message_body();
+                } else {
+                    self->cleanup_registration();
+                    std::cout << "[Server] Client disconnected during length read.\n";
                 }
             });
     }
@@ -42,8 +45,19 @@ private:
                     } else {
                         self->process_post_registration_message();
                     }
+                } else {
+                    self->cleanup_registration();
+                    std::cout << "[Server] Client disconnected during body read.\n";
                 }
             });
+    }
+
+    void cleanup_registration() {
+        if (is_registered_ && !fsm_context_->get_id().empty()) {
+            registry_->unregister_client(fsm_context_->get_id());
+            std::cout << "[Server] Unregistered client '" << fsm_context_->get_id() << "' after disconnect.\n";
+            is_registered_ = false;
+        }
     }
 
     void deliver_payload(const std::string& payload) {

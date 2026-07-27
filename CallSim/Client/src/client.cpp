@@ -34,33 +34,48 @@ private:
         std::cout << "======================================\n";
     }
 
+    void post_to_io(std::function<void()> action) {
+        auto self(shared_from_this());
+        boost::asio::post(socket_.get_executor(), [self, action = std::move(action)]() {
+            action();
+        });
+    }
+
     void console_loop() {
         std::string input;
         while (std::getline(std::cin, input)) {
             if (input.empty()) {
                 continue;
             }
-            
+
             if (input == "/help") {
                 print_help();
             } else if (input == "/exit") {
                 std::cout << "[" << client_id_ << "] Disconnecting...\n";
-                socket_.close();
+                post_to_io([self = shared_from_this()]() {
+                    self->disconnect();
+                });
                 break;
             } else if (input.rfind("/call ", 0) == 0) {
                 std::string callee_id = input.substr(6);
-                
+
                 if (callee_id.empty()) {
                     std::cout << "[ERROR] Please provide a client ID. Usage: /call <client_id>\n";
                 } else if (callee_id == client_id_) {
                     std::cout << "[ERROR] Cannot call yourself!\n";
                 } else {
-                    initiate_call(callee_id);
+                    post_to_io([self = shared_from_this(), callee_id]() {
+                        self->do_initiate_call(callee_id);
+                    });
                 }
             } else if (input == "/answer") {
-                answer_call();
+                post_to_io([self = shared_from_this()]() {
+                    self->do_answer_call();
+                });
             } else if (input == "/reject") {
-                reject_call();
+                post_to_io([self = shared_from_this()]() {
+                    self->do_reject_call();
+                });
             } else {
                 std::cout << "[ERROR] Unknown command: '" << input << "'\n";
                 std::cout << "Type '/help' for available commands.\n";
@@ -68,7 +83,12 @@ private:
         }
     }
 
-    void initiate_call(const std::string& callee_id) {
+    void do_initiate_call(const std::string& callee_id) {
+        if (fsm_.get_current_state() != callsim::CLIENT_REGISTERED) {
+            std::cout << "[ERROR] Cannot initiate call until registered.\n";
+            return;
+        }
+
         callsim::CallIntent intent;
         intent.mutable_caller()->set_id(client_id_);
         intent.mutable_callee()->set_id(callee_id);
@@ -79,73 +99,83 @@ private:
             std::cerr << "Failed to serialize CallIntent.\n";
             return;
         }
-        
-        auto self(shared_from_this());
-        boost::asio::post(socket_.get_executor(), [self, write_buf]() {
-            self->send_message(write_buf);
-        });
 
+        send_message(write_buf);
         fsm_.handle_transition(callsim::CALL);
         pending_callee_ = callee_id;
         std::cout << "==> Dialing " << callee_id << "... Waiting for response.\n";
     }
 
-    void answer_call() {
+    void do_answer_call() {
         if (!has_incoming_call_) {
             std::cout << "[ERROR] No incoming call to answer!\n";
             return;
         }
-        
+
         std::cout << "==> Answering call from " << incoming_caller_ << "...\n";
         fsm_.handle_transition(callsim::ACCEPTED);
         has_incoming_call_ = false;
-        
+
         callsim::CallEvent answer_event;
         answer_event.set_signal(callsim::ACCEPTED);
         answer_event.mutable_emitter()->set_id(client_id_);
         answer_event.mutable_receiver()->set_id(incoming_caller_);
         answer_event.set_session_id(incoming_session_id_);
-        
+
         std::string payload;
         if (answer_event.SerializeToString(&payload)) {
             send_message(std::vector<char>(payload.begin(), payload.end()));
         }
     }
 
-    void reject_call() {
+    void do_reject_call() {
         if (!has_incoming_call_) {
             std::cout << "[ERROR] No incoming call to reject!\n";
             return;
         }
-        
+
         std::cout << "==> Rejecting call from " << incoming_caller_ << "...\n";
         fsm_.handle_transition(callsim::REJECTED);
         has_incoming_call_ = false;
-        
+
         callsim::CallEvent reject_event;
         reject_event.set_signal(callsim::REJECTED);
         reject_event.mutable_emitter()->set_id(client_id_);
         reject_event.mutable_receiver()->set_id(incoming_caller_);
         reject_event.set_session_id(incoming_session_id_);
-        
+
         std::string payload;
         if (reject_event.SerializeToString(&payload)) {
             send_message(std::vector<char>(payload.begin(), payload.end()));
         }
     }
 
+    void disconnect() {
+        boost::system::error_code ignored_ec;
+        socket_.close(ignored_ec);
+    }
+
     void send_message(const std::vector<char>& write_buf) {
+        if (!socket_.is_open()) {
+            std::cerr << "Cannot send message: socket is closed.\n";
+            return;
+        }
+
+        auto copy = std::make_shared<std::vector<char>>(write_buf);
         auto self(shared_from_this());
-        
-        auto buffer_ptr = std::make_shared<std::vector<char>>(write_buf);
+        boost::asio::post(socket_.get_executor(), [self, copy]() {
+            self->do_send_message(copy);
+        });
+    }
+
+    void do_send_message(std::shared_ptr<std::vector<char>> buffer_ptr) {
         uint32_t len_network = htonl(static_cast<uint32_t>(buffer_ptr->size()));
-        
         buffer_ptr->insert(buffer_ptr->begin(),
-            reinterpret_cast<char*>(&len_network), 
+            reinterpret_cast<char*>(&len_network),
             reinterpret_cast<char*>(&len_network) + sizeof(len_network));
 
         boost::asio::async_write(socket_, boost::asio::buffer(*buffer_ptr),
-            [self, buffer_ptr](boost::system::error_code ec, std::size_t) {
+            [self = shared_from_this(), buffer_ptr](boost::system::error_code ec, std::size_t) {
                 if (ec) std::cerr << "Failed to send message: " << ec.message() << "\n";
             });
     }
@@ -275,6 +305,9 @@ private:
                 if (ring_alert.emitter().id() == pending_callee_) {
                     std::cout << "\n[CALL FAILED] " << pending_callee_ << " is unavailable or does not exist.\n";
                     pending_callee_.clear();
+                    if (fsm_.get_current_state() == callsim::CLIENT_CALLING) {
+                        fsm_.handle_transition(callsim::REJECTED);
+                    }
                     std::cout << "> ";
                     std::cout.flush();
                 }

@@ -13,9 +13,8 @@ public:
         if (session->get_id().empty() || session->get_state() != callsim::SERVER_REGISTERED_IDLE) {
             return false;
         }
-        // Check if client ID already registered
         if (active_clients_.find(session->get_id()) != active_clients_.end()) {
-            return false;  // Duplicate ID
+            return false;
         }
         active_clients_[session->get_id()] = session;
         return true;
@@ -27,6 +26,10 @@ public:
             return it->second;
         }
         return nullptr;
+    }
+
+    bool unregister_client(const std::string& id) {
+        return active_clients_.erase(id) > 0;
     }
 
     size_t total_registered() const { return active_clients_.size(); }
