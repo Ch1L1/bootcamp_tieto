@@ -29,6 +29,7 @@ private:
         std::cout << " /call <client_id>   - Call another client\n";
         std::cout << " /answer             - Accept an incoming call\n";
         std::cout << " /reject             - Decline an incoming call\n";
+        std::cout << " /hangup             - End the active call\n";
         std::cout << " /help               - Show this help message\n";
         std::cout << " /exit               - Disconnect\n";
         std::cout << "======================================\n";
@@ -83,6 +84,10 @@ private:
             } else if (input == "/reject") {
                 post_to_io([self = shared_from_this()]() {
                     self->do_reject_call();
+                });
+            } else if (input == "/hangup") {
+                post_to_io([self = shared_from_this()]() {
+                    self->do_hangup_call();
                 });
             } else {
                 std::cout << "[ERROR] Unknown command: '" << input << "'\n";
@@ -168,6 +173,38 @@ private:
             send_message(std::vector<char>(payload.begin(), payload.end()));
             print_prompt();
         }
+    }
+
+    void do_hangup_call() {
+        if (fsm_.get_current_state() != callsim::CLIENT_TALKING) {
+            std::cout << "[ERROR] No active call to hang up!\n";
+            return;
+        }
+
+        std::cout << "==> Hanging up call with " << active_remote_id_ << "...\n";
+        callsim::CallEvent hangup_event;
+        hangup_event.set_signal(callsim::END);
+        hangup_event.mutable_emitter()->set_id(client_id_);
+        hangup_event.mutable_receiver()->set_id(active_remote_id_);
+        hangup_event.set_session_id(active_session_id_);
+
+        std::string payload;
+        if (hangup_event.SerializeToString(&payload)) {
+            send_message(std::vector<char>(payload.begin(), payload.end()));
+        }
+
+        fsm_.handle_transition(callsim::END);
+        clear_active_call_state();
+        std::cout << "[CALL ENDED] You hung up the call.\n";
+    }
+
+    void clear_active_call_state() {
+        has_incoming_call_ = false;
+        incoming_caller_.clear();
+        incoming_session_id_.clear();
+        pending_callee_.clear();
+        active_session_id_.clear();
+        active_remote_id_.clear();
     }
 
     void disconnect() {
@@ -328,6 +365,14 @@ private:
                     pending_callee_.clear();
                     std::cout << "\n" << format_call_connected_message(active_remote_id_) << "\n";
                     print_prompt();
+                }
+            } else if (ring_alert.signal() == callsim::END) {
+                if (ring_alert.receiver().id() == client_id_ && fsm_.get_current_state() == callsim::CLIENT_TALKING) {
+                    std::cout << "\n[CALL ENDED] " << ring_alert.emitter().id() << " hung up.\n";
+                    fsm_.handle_transition(callsim::END);
+                    clear_active_call_state();
+                    std::cout << "> ";
+                    std::cout.flush();
                 }
             } else if (ring_alert.signal() == callsim::REJECTED) {
                 if (ring_alert.emitter().id() == pending_callee_) {

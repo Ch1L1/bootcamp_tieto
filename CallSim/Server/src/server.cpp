@@ -178,6 +178,8 @@ private:
                     std::cout << "[Server] Call accepted by " << event.emitter().id() << " for session " << event.session_id() << "\n";
                 } else if (event.signal() == callsim::REJECTED) {
                     std::cout << "[Server] Call rejected by " << event.emitter().id() << " for session " << event.session_id() << "\n";
+                } else if (event.signal() == callsim::END) {
+                    std::cout << "[Server] Call ended by " << event.emitter().id() << " for session " << event.session_id() << "\n";
                 }
             } else {
                 std::cerr << "[Server] Unknown message type received.\n";
