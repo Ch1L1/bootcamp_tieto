@@ -112,6 +112,8 @@ private:
             return;
         }
 
+        active_session_id_ = incoming_session_id_;
+        active_remote_id_ = incoming_caller_;
         std::cout << "==> Answering call from " << incoming_caller_ << "...\n";
         fsm_.handle_transition(callsim::ACCEPTED);
         has_incoming_call_ = false;
@@ -125,6 +127,7 @@ private:
         std::string payload;
         if (answer_event.SerializeToString(&payload)) {
             send_message(std::vector<char>(payload.begin(), payload.end()));
+            std::cout << "[CALL CONNECTED] Talking with " << active_remote_id_ << ".\n";
         }
     }
 
@@ -143,6 +146,7 @@ private:
         reject_event.mutable_emitter()->set_id(client_id_);
         reject_event.mutable_receiver()->set_id(incoming_caller_);
         reject_event.set_session_id(incoming_session_id_);
+        reject_event.set_context("callee_rejected");
 
         std::string payload;
         if (reject_event.SerializeToString(&payload)) {
@@ -301,9 +305,23 @@ private:
                 std::cout << " Type '/answer' to accept or '/reject' to decline.\n";
                 std::cout << "======================================\n> ";
                 std::cout.flush();
+            } else if (ring_alert.signal() == callsim::ACCEPTED) {
+                if (ring_alert.receiver().id() == client_id_) {
+                    active_session_id_ = ring_alert.session_id();
+                    active_remote_id_ = ring_alert.emitter().id();
+                    fsm_.handle_transition(callsim::ACCEPTED);
+                    pending_callee_.clear();
+                    std::cout << "\n[CALL CONNECTED] Now talking with " << active_remote_id_ << ".\n";
+                    std::cout << "> ";
+                    std::cout.flush();
+                }
             } else if (ring_alert.signal() == callsim::REJECTED) {
                 if (ring_alert.emitter().id() == pending_callee_) {
-                    std::cout << "\n[CALL FAILED] " << pending_callee_ << " is unavailable or does not exist.\n";
+                    if (ring_alert.context() == "callee_rejected") {
+                        std::cout << "\n[CALL REJECTED] " << pending_callee_ << " declined your call.\n";
+                    } else {
+                        std::cout << "\n[CALL FAILED] " << pending_callee_ << " is unavailable or does not exist.\n";
+                    }
                     pending_callee_.clear();
                     if (fsm_.get_current_state() == callsim::CLIENT_CALLING) {
                         fsm_.handle_transition(callsim::REJECTED);
@@ -330,6 +348,8 @@ private:
     std::string incoming_caller_;
     std::string incoming_session_id_;
     std::string pending_callee_;
+    std::string active_session_id_;
+    std::string active_remote_id_;
 };
 
 int main(int argc, char* argv[]) {

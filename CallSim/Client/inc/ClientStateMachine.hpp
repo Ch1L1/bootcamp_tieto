@@ -7,6 +7,15 @@
 #include "Message.pb.h"
 
 class ClientStateMachine;
+class StateCalling;
+class StateAnswering;
+class StateTalking;
+class StateCalling;
+class StateAnswering;
+class StateTalking;
+class StateCalling;
+class StateAnswering;
+class StateTalking;
 
 class ClientState {
 public:
@@ -64,13 +73,28 @@ public:
     void handle_signal(callsim::CallSignal signal, ClientStateMachine& fsm) override;
 };
 
+class StateTalking : public ClientState {
+public:
+    callsim::ClientState get_enum_state() const override { return callsim::CLIENT_TALKING; }
+    std::string get_name() const override { return "CLIENT_TALKING"; }
+    void handle_signal(callsim::CallSignal signal, ClientStateMachine& fsm) override {
+        if (signal == callsim::END) {
+            fsm.set_state(std::make_shared<StateRegistered>());
+        } else {
+            throw std::runtime_error("FSM Violation: Invalid signal for TALKING state!");
+        }
+    }
+};
+
 class StateCalling : public ClientState {
 public:
     callsim::ClientState get_enum_state() const override { return callsim::CLIENT_CALLING; }
     std::string get_name() const override { return "CLIENT_CALLING"; }
     void handle_signal(callsim::CallSignal signal, ClientStateMachine& fsm) override {
-        if (signal == callsim::REJECTED || signal == callsim::ACCEPTED) {
+        if (signal == callsim::REJECTED) {
             fsm.set_state(std::make_shared<StateRegistered>());
+        } else if (signal == callsim::ACCEPTED) {
+            fsm.set_state(std::make_shared<StateTalking>());
         } else {
             throw std::runtime_error("FSM Violation: Invalid signal for CALLING state!");
         }
@@ -82,8 +106,10 @@ public:
     callsim::ClientState get_enum_state() const override { return callsim::CLIENT_ANSWERING; }
     std::string get_name() const override { return "CLIENT_ANSWERING"; }
     void handle_signal(callsim::CallSignal signal, ClientStateMachine& fsm) override {
-        if (signal == callsim::ACCEPTED || signal == callsim::REJECTED) {
+        if (signal == callsim::REJECTED) {
             fsm.set_state(std::make_shared<StateRegistered>());
+        } else if (signal == callsim::ACCEPTED) {
+            fsm.set_state(std::make_shared<StateTalking>());
         } else {
             throw std::runtime_error("FSM Violation: Invalid signal for ANSWERING state!");
         }
