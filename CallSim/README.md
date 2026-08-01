@@ -4,11 +4,22 @@ A small client-server call simulation built with C++ and CMake. The project uses
 
 ---
 
+## What the project supports
+
+- A server that keeps track of registered clients.
+- Clients that register themselves on startup.
+- Outgoing calls from one client to another.
+- Incoming ring notifications for the callee.
+- Call accept/reject handling through the server.
+- A talking state once a call is accepted.
+- Hangup support for ending an active call.
+- Basic state-machine behavior covered by automated tests.
+
 ## Project Structure
 
 ```text
 CallSim/
-├── Client/          # Client application
+├── Client/          # Client application and tests
 ├── Server/          # Server application
 ├── proto/           # Protobuf message definitions
 ├── callsim.sh       # Helper script for building and running
@@ -20,7 +31,7 @@ CallSim/
 - C++17-capable compiler
 - Protobuf (Google Protocol Buffers)
 
-**macOS Installation (via Homebrew):**
+### macOS installation
 
 ```bash
 brew install cmake protobuf
@@ -40,8 +51,11 @@ sudo apt update && sudo apt install -y build-essential cmake libprotobuf-dev pro
 # Run the server (starts listening on localhost:8080)
 ./callsim.sh --run-server
 
-# Run the client
-./callsim.sh --run-client
+# Run a client with an optional ID
+./callsim.sh --run-client alice
+
+# Run tests
+./callsim.sh --test
 
 # Remove all build artifacts
 ./callsim.sh --clean
