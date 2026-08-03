@@ -55,6 +55,7 @@ private:
 
             if (input == "/help") {
                 print_help();
+                print_prompt();
             } else if (input == "/exit") {
                 std::cout << "[" << client_id_ << "] Disconnecting...\n";
                 post_to_io([self = shared_from_this()]() {
@@ -66,8 +67,10 @@ private:
 
                 if (callee_id.empty()) {
                     std::cout << "[ERROR] Please provide a client ID. Usage: /call <client_id>\n";
+                    print_prompt();
                 } else if (callee_id == client_id_) {
                     std::cout << "[ERROR] Cannot call yourself!\n";
+                    print_prompt();
                 } else {
                     post_to_io([self = shared_from_this(), callee_id]() {
                         self->do_initiate_call(callee_id);
@@ -84,9 +87,6 @@ private:
             } else {
                 std::cout << "[ERROR] Unknown command: '" << input << "'\n";
                 std::cout << "Type '/help' for available commands.\n";
-            }
-
-            if (input != "/exit") {
                 print_prompt();
             }
         }
@@ -95,6 +95,7 @@ private:
     void do_initiate_call(const std::string& callee_id) {
         if (fsm_.get_current_state() != callsim::CLIENT_REGISTERED) {
             std::cout << "[ERROR] Cannot initiate call until registered.\n";
+            print_prompt();
             return;
         }
 
@@ -106,6 +107,7 @@ private:
         std::vector<char> write_buf(intent.ByteSizeLong());
         if (!intent.SerializeToArray(write_buf.data(), write_buf.size())) {
             std::cerr << "Failed to serialize CallIntent.\n";
+            print_prompt();
             return;
         }
 
@@ -113,11 +115,13 @@ private:
         fsm_.handle_transition(callsim::CALL);
         pending_callee_ = callee_id;
         std::cout << "==> Dialing " << callee_id << "... Waiting for response.\n";
+        print_prompt();
     }
 
     void do_answer_call() {
         if (!has_incoming_call_) {
             std::cout << "[ERROR] No incoming call to answer!\n";
+            print_prompt();
             return;
         }
 
@@ -137,12 +141,14 @@ private:
         if (answer_event.SerializeToString(&payload)) {
             send_message(std::vector<char>(payload.begin(), payload.end()));
             std::cout << format_call_connected_message(active_remote_id_) << "\n";
+            print_prompt();
         }
     }
 
     void do_reject_call() {
         if (!has_incoming_call_) {
             std::cout << "[ERROR] No incoming call to reject!\n";
+            print_prompt();
             return;
         }
 
@@ -160,6 +166,7 @@ private:
         std::string payload;
         if (reject_event.SerializeToString(&payload)) {
             send_message(std::vector<char>(payload.begin(), payload.end()));
+            print_prompt();
         }
     }
 
