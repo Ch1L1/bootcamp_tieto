@@ -75,3 +75,13 @@ TEST(ClientFSMTests, TalkingStateCanEndTheCall) {
 
     EXPECT_EQ(fsm.get_current_state(), callsim::CLIENT_REGISTERED);
 }
+
+TEST(ClientFSMTests, CalleeSideHangupReturnsToRegistered) {
+    ClientStateMachine fsm;
+    fsm.handle_transition(callsim::REGISTERED);
+    fsm.handle_transition(callsim::ANSWERING);
+    fsm.handle_transition(callsim::ACCEPTED);
+    fsm.handle_transition(callsim::END);
+
+    EXPECT_EQ(fsm.get_current_state(), callsim::CLIENT_REGISTERED);
+}
