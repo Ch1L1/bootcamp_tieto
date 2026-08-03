@@ -3,6 +3,7 @@
 #include <vector>
 #include <memory>
 #include <thread>
+#include <functional>
 #include <arpa/inet.h>
 #include <boost/asio.hpp>
 #include "Message.pb.h"
@@ -190,12 +191,21 @@ private:
 
         std::string payload;
         if (hangup_event.SerializeToString(&payload)) {
-            send_message(std::vector<char>(payload.begin(), payload.end()));
-        }
+            auto self(shared_from_this());
+            send_message(std::vector<char>(payload.begin(), payload.end()),
+                [self](bool send_succeeded) {
+                    if (!send_succeeded) {
+                        std::cout << "[ERROR] Hangup message could not be sent; the call remains active.\n";
+                        self->print_prompt();
+                        return;
+                    }
 
-        fsm_.handle_transition(callsim::END);
-        clear_active_call_state();
-        std::cout << "[CALL ENDED] You hung up the call.\n";
+                    self->fsm_.finalize_hangup_transition(true);
+                    self->clear_active_call_state();
+                    std::cout << "[CALL ENDED] You hung up the call.\n";
+                    self->print_prompt();
+                });
+        }
     }
 
     void clear_active_call_state() {
@@ -212,28 +222,36 @@ private:
         socket_.close(ignored_ec);
     }
 
-    void send_message(const std::vector<char>& write_buf) {
+    void send_message(const std::vector<char>& write_buf, std::function<void(bool)> on_complete = {}) {
         if (!socket_.is_open()) {
             std::cerr << "Cannot send message: socket is closed.\n";
+            if (on_complete) {
+                on_complete(false);
+            }
             return;
         }
 
         auto copy = std::make_shared<std::vector<char>>(write_buf);
         auto self(shared_from_this());
-        boost::asio::post(socket_.get_executor(), [self, copy]() {
-            self->do_send_message(copy);
+        boost::asio::post(socket_.get_executor(), [self, copy, on_complete = std::move(on_complete)]() {
+            self->do_send_message(copy, std::move(on_complete));
         });
     }
 
-    void do_send_message(std::shared_ptr<std::vector<char>> buffer_ptr) {
+    void do_send_message(std::shared_ptr<std::vector<char>> buffer_ptr, std::function<void(bool)> on_complete) {
         uint32_t len_network = htonl(static_cast<uint32_t>(buffer_ptr->size()));
         buffer_ptr->insert(buffer_ptr->begin(),
             reinterpret_cast<char*>(&len_network),
             reinterpret_cast<char*>(&len_network) + sizeof(len_network));
 
         boost::asio::async_write(socket_, boost::asio::buffer(*buffer_ptr),
-            [self = shared_from_this(), buffer_ptr](boost::system::error_code ec, std::size_t) {
-                if (ec) std::cerr << "Failed to send message: " << ec.message() << "\n";
+            [self = shared_from_this(), buffer_ptr, on_complete = std::move(on_complete)](boost::system::error_code ec, std::size_t) {
+                if (ec) {
+                    std::cerr << "Failed to send message: " << ec.message() << "\n";
+                    if (on_complete) on_complete(false);
+                } else if (on_complete) {
+                    on_complete(true);
+                }
             });
     }
 

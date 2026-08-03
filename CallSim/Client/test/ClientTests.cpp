@@ -85,3 +85,16 @@ TEST(ClientFSMTests, CalleeSideHangupReturnsToRegistered) {
 
     EXPECT_EQ(fsm.get_current_state(), callsim::CLIENT_REGISTERED);
 }
+
+TEST(ClientFSMTests, HangupTransitionOnlyAppliesAfterSuccessfulSend) {
+    ClientStateMachine fsm;
+    fsm.handle_transition(callsim::REGISTERED);
+    fsm.handle_transition(callsim::CALL);
+    fsm.handle_transition(callsim::ACCEPTED);
+
+    fsm.finalize_hangup_transition(false);
+    EXPECT_EQ(fsm.get_current_state(), callsim::CLIENT_TALKING);
+
+    fsm.finalize_hangup_transition(true);
+    EXPECT_EQ(fsm.get_current_state(), callsim::CLIENT_REGISTERED);
+}
