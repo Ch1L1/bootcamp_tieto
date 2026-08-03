@@ -10,12 +10,6 @@ class ClientStateMachine;
 class StateCalling;
 class StateAnswering;
 class StateTalking;
-class StateCalling;
-class StateAnswering;
-class StateTalking;
-class StateCalling;
-class StateAnswering;
-class StateTalking;
 
 class ClientState {
 public:
@@ -24,6 +18,10 @@ public:
     virtual callsim::ClientState get_enum_state() const = 0;
     virtual std::string get_name() const = 0;
 };
+
+inline std::string format_call_connected_message(const std::string& remote_id) {
+    return "[CALL CONNECTED] Now talking with " + remote_id + ".";
+}
 
 class ClientStateMachine {
 private:

@@ -34,6 +34,11 @@ private:
         std::cout << "======================================\n";
     }
 
+    void print_prompt() {
+        std::cout << "> ";
+        std::cout.flush();
+    }
+
     void post_to_io(std::function<void()> action) {
         auto self(shared_from_this());
         boost::asio::post(socket_.get_executor(), [self, action = std::move(action)]() {
@@ -79,6 +84,10 @@ private:
             } else {
                 std::cout << "[ERROR] Unknown command: '" << input << "'\n";
                 std::cout << "Type '/help' for available commands.\n";
+            }
+
+            if (input != "/exit") {
+                print_prompt();
             }
         }
     }
@@ -127,7 +136,7 @@ private:
         std::string payload;
         if (answer_event.SerializeToString(&payload)) {
             send_message(std::vector<char>(payload.begin(), payload.end()));
-            std::cout << "[CALL CONNECTED] Talking with " << active_remote_id_ << ".\n";
+            std::cout << format_call_connected_message(active_remote_id_) << "\n";
         }
     }
 
@@ -252,8 +261,7 @@ private:
             fsm_.handle_transition(callsim::REGISTERED);
             std::cout << "[" << client_id_ << "] Registered.\n";
             print_help();
-            std::cout << "> ";
-            std::cout.flush();
+            print_prompt();
 
             waitForIncomingSignals();
         }
@@ -303,17 +311,16 @@ private:
                 std::cout << "\n\n======================================\n";
                 std::cout << " RING! Incoming call from: " << incoming_caller_ << "\n";
                 std::cout << " Type '/answer' to accept or '/reject' to decline.\n";
-                std::cout << "======================================\n> ";
-                std::cout.flush();
+                std::cout << "======================================\n";
+                print_prompt();
             } else if (ring_alert.signal() == callsim::ACCEPTED) {
                 if (ring_alert.receiver().id() == client_id_) {
                     active_session_id_ = ring_alert.session_id();
                     active_remote_id_ = ring_alert.emitter().id();
                     fsm_.handle_transition(callsim::ACCEPTED);
                     pending_callee_.clear();
-                    std::cout << "\n[CALL CONNECTED] Now talking with " << active_remote_id_ << ".\n";
-                    std::cout << "> ";
-                    std::cout.flush();
+                    std::cout << "\n" << format_call_connected_message(active_remote_id_) << "\n";
+                    print_prompt();
                 }
             } else if (ring_alert.signal() == callsim::REJECTED) {
                 if (ring_alert.emitter().id() == pending_callee_) {
@@ -326,8 +333,7 @@ private:
                     if (fsm_.get_current_state() == callsim::CLIENT_CALLING) {
                         fsm_.handle_transition(callsim::REJECTED);
                     }
-                    std::cout << "> ";
-                    std::cout.flush();
+                    print_prompt();
                 }
             }
         } else {

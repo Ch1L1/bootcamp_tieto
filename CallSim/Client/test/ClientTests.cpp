@@ -31,3 +31,8 @@ TEST(ClientFSMTests, InvalidTransitionThrows) {
     ClientStateMachine fsm;
     EXPECT_THROW(fsm.handle_transition(callsim::ANSWER), std::runtime_error);
 }
+
+TEST(ClientUIHelpersTests, CallConnectedMessageUsesConsistentFormat) {
+    EXPECT_EQ(format_call_connected_message("Bob"), "[CALL CONNECTED] Now talking with Bob.");
+    EXPECT_EQ(format_call_connected_message("Lora"), "[CALL CONNECTED] Now talking with Lora.");
+}
