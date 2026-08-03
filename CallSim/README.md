@@ -99,6 +99,7 @@ Once the client is running, it supports the following commands:
 - `/call <client_id>` - Start a call with another client
 - `/answer` - Accept an incoming call
 - `/reject` - Decline an incoming call
+- `/hangup` - End an active call
 - `/help` - Show the available commands
 - `/exit` - Disconnect from the server
 
@@ -108,14 +109,25 @@ Once the client is running, it supports the following commands:
 ```bash
 ./callsim.sh --run-server
 ./callsim.sh --run-client Bob
+./callsim.sh --run-client Alice
 ```
 
-Then in the client console:
+Then in the client consoles:
 
 ```text
-/call Lora
-/answer
-/reject
+# Alice
+/call Bob
+```
+
+```text
+# Bob
+/answer || /reject
+```
+
+When the call is connected, either side can end it with:
+
+```text
+/hangup
 ```
 
 ## Run tests
@@ -129,8 +141,3 @@ Then in the client console:
 ```bash
 ./callsim.sh --clean
 ```
-
-## Notes
-
-- The current phase focuses on the interactive call flow and basic client/server state handling.
-- TODO: HangUp call
