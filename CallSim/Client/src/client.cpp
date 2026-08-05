@@ -134,8 +134,6 @@ private:
         active_session_id_ = incoming_session_id_;
         active_remote_id_ = incoming_caller_;
         std::cout << "==> Answering call from " << incoming_caller_ << "...\n";
-        fsm_.handle_transition(callsim::ACCEPTED);
-        has_incoming_call_ = false;
 
         callsim::CallEvent answer_event;
         answer_event.set_signal(callsim::ACCEPTED);
@@ -145,9 +143,20 @@ private:
 
         std::string payload;
         if (answer_event.SerializeToString(&payload)) {
-            send_message(std::vector<char>(payload.begin(), payload.end()));
-            std::cout << format_call_connected_message(active_remote_id_) << "\n";
-            print_prompt();
+            auto self(shared_from_this());
+            send_message(std::vector<char>(payload.begin(), payload.end()),
+                [self](bool send_succeeded) {
+                    if (!send_succeeded) {
+                        std::cout << "[ERROR] Answer message could not be sent, the incoming call remains pending.\n";
+                        self->print_prompt();
+                        return;
+                    }
+
+                    self->fsm_.handle_transition(callsim::ACCEPTED);
+                    self->has_incoming_call_ = false;
+                    std::cout << format_call_connected_message(self->active_remote_id_) << "\n";
+                    self->print_prompt();
+                });
         }
     }
 
@@ -159,8 +168,6 @@ private:
         }
 
         std::cout << "==> Rejecting call from " << incoming_caller_ << "...\n";
-        fsm_.handle_transition(callsim::REJECTED);
-        has_incoming_call_ = false;
 
         callsim::CallEvent reject_event;
         reject_event.set_signal(callsim::REJECTED);
@@ -171,8 +178,19 @@ private:
 
         std::string payload;
         if (reject_event.SerializeToString(&payload)) {
-            send_message(std::vector<char>(payload.begin(), payload.end()));
-            print_prompt();
+            auto self(shared_from_this());
+            send_message(std::vector<char>(payload.begin(), payload.end()),
+                [self](bool send_succeeded) {
+                    if (!send_succeeded) {
+                        std::cout << "[ERROR] Reject message could not be sent, the incoming call remains pending.\n";
+                        self->print_prompt();
+                        return;
+                    }
+
+                    self->fsm_.handle_transition(callsim::REJECTED);
+                    self->has_incoming_call_ = false;
+                    self->print_prompt();
+                });
         }
     }
 
@@ -195,7 +213,7 @@ private:
             send_message(std::vector<char>(payload.begin(), payload.end()),
                 [self](bool send_succeeded) {
                     if (!send_succeeded) {
-                        std::cout << "[ERROR] Hangup message could not be sent; the call remains active.\n";
+                        std::cout << "[ERROR] Hangup message could not be sent, the call remains active.\n";
                         self->print_prompt();
                         return;
                     }
