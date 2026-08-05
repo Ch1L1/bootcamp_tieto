@@ -34,6 +34,11 @@ private:
         std::cout << "======================================\n";
     }
 
+    void print_prompt() {
+        std::cout << "> ";
+        std::cout.flush();
+    }
+
     void post_to_io(std::function<void()> action) {
         auto self(shared_from_this());
         boost::asio::post(socket_.get_executor(), [self, action = std::move(action)]() {
@@ -50,6 +55,7 @@ private:
 
             if (input == "/help") {
                 print_help();
+                print_prompt();
             } else if (input == "/exit") {
                 std::cout << "[" << client_id_ << "] Disconnecting...\n";
                 post_to_io([self = shared_from_this()]() {
@@ -61,8 +67,10 @@ private:
 
                 if (callee_id.empty()) {
                     std::cout << "[ERROR] Please provide a client ID. Usage: /call <client_id>\n";
+                    print_prompt();
                 } else if (callee_id == client_id_) {
                     std::cout << "[ERROR] Cannot call yourself!\n";
+                    print_prompt();
                 } else {
                     post_to_io([self = shared_from_this(), callee_id]() {
                         self->do_initiate_call(callee_id);
@@ -79,6 +87,7 @@ private:
             } else {
                 std::cout << "[ERROR] Unknown command: '" << input << "'\n";
                 std::cout << "Type '/help' for available commands.\n";
+                print_prompt();
             }
         }
     }
@@ -86,6 +95,7 @@ private:
     void do_initiate_call(const std::string& callee_id) {
         if (fsm_.get_current_state() != callsim::CLIENT_REGISTERED) {
             std::cout << "[ERROR] Cannot initiate call until registered.\n";
+            print_prompt();
             return;
         }
 
@@ -97,6 +107,7 @@ private:
         std::vector<char> write_buf(intent.ByteSizeLong());
         if (!intent.SerializeToArray(write_buf.data(), write_buf.size())) {
             std::cerr << "Failed to serialize CallIntent.\n";
+            print_prompt();
             return;
         }
 
@@ -104,14 +115,18 @@ private:
         fsm_.handle_transition(callsim::CALL);
         pending_callee_ = callee_id;
         std::cout << "==> Dialing " << callee_id << "... Waiting for response.\n";
+        print_prompt();
     }
 
     void do_answer_call() {
         if (!has_incoming_call_) {
             std::cout << "[ERROR] No incoming call to answer!\n";
+            print_prompt();
             return;
         }
 
+        active_session_id_ = incoming_session_id_;
+        active_remote_id_ = incoming_caller_;
         std::cout << "==> Answering call from " << incoming_caller_ << "...\n";
         fsm_.handle_transition(callsim::ACCEPTED);
         has_incoming_call_ = false;
@@ -125,12 +140,15 @@ private:
         std::string payload;
         if (answer_event.SerializeToString(&payload)) {
             send_message(std::vector<char>(payload.begin(), payload.end()));
+            std::cout << format_call_connected_message(active_remote_id_) << "\n";
+            print_prompt();
         }
     }
 
     void do_reject_call() {
         if (!has_incoming_call_) {
             std::cout << "[ERROR] No incoming call to reject!\n";
+            print_prompt();
             return;
         }
 
@@ -143,10 +161,12 @@ private:
         reject_event.mutable_emitter()->set_id(client_id_);
         reject_event.mutable_receiver()->set_id(incoming_caller_);
         reject_event.set_session_id(incoming_session_id_);
+        reject_event.set_context("callee_rejected");
 
         std::string payload;
         if (reject_event.SerializeToString(&payload)) {
             send_message(std::vector<char>(payload.begin(), payload.end()));
+            print_prompt();
         }
     }
 
@@ -248,8 +268,7 @@ private:
             fsm_.handle_transition(callsim::REGISTERED);
             std::cout << "[" << client_id_ << "] Registered.\n";
             print_help();
-            std::cout << "> ";
-            std::cout.flush();
+            print_prompt();
 
             waitForIncomingSignals();
         }
@@ -299,17 +318,29 @@ private:
                 std::cout << "\n\n======================================\n";
                 std::cout << " RING! Incoming call from: " << incoming_caller_ << "\n";
                 std::cout << " Type '/answer' to accept or '/reject' to decline.\n";
-                std::cout << "======================================\n> ";
-                std::cout.flush();
+                std::cout << "======================================\n";
+                print_prompt();
+            } else if (ring_alert.signal() == callsim::ACCEPTED) {
+                if (ring_alert.receiver().id() == client_id_) {
+                    active_session_id_ = ring_alert.session_id();
+                    active_remote_id_ = ring_alert.emitter().id();
+                    fsm_.handle_transition(callsim::ACCEPTED);
+                    pending_callee_.clear();
+                    std::cout << "\n" << format_call_connected_message(active_remote_id_) << "\n";
+                    print_prompt();
+                }
             } else if (ring_alert.signal() == callsim::REJECTED) {
                 if (ring_alert.emitter().id() == pending_callee_) {
-                    std::cout << "\n[CALL FAILED] " << pending_callee_ << " is unavailable or does not exist.\n";
+                    if (ring_alert.context() == "callee_rejected") {
+                        std::cout << "\n[CALL REJECTED] " << pending_callee_ << " declined your call.\n";
+                    } else {
+                        std::cout << "\n[CALL FAILED] " << pending_callee_ << " is unavailable or does not exist.\n";
+                    }
                     pending_callee_.clear();
                     if (fsm_.get_current_state() == callsim::CLIENT_CALLING) {
                         fsm_.handle_transition(callsim::REJECTED);
                     }
-                    std::cout << "> ";
-                    std::cout.flush();
+                    print_prompt();
                 }
             }
         } else {
@@ -330,6 +361,8 @@ private:
     std::string incoming_caller_;
     std::string incoming_session_id_;
     std::string pending_callee_;
+    std::string active_session_id_;
+    std::string active_remote_id_;
 };
 
 int main(int argc, char* argv[]) {

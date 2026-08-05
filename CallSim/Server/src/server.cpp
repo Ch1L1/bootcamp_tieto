@@ -124,11 +124,10 @@ private:
         if (intent.ParseFromArray(read_buffer_.data(), read_buffer_.size())) {
             std::string caller = intent.caller().id();
             std::string callee = intent.callee().id();
-            
+
             std::cout << "\n[Server] Routing CALL from " << caller << " to " << callee << "...\n";
-            
+
             auto target_session = registry_->get_client(callee);
-            
             if (target_session) {
                 callsim::CallEvent ring_alert;
                 ring_alert.set_signal(callsim::CALL);
@@ -145,7 +144,7 @@ private:
                 std::cout << "[Server] Successfully forwarded RING to " << callee << "!\n";
             } else {
                 std::cout << "[Server] Routing Failed: " << callee << " is not registered.\n";
-                
+
                 auto caller_session = registry_->get_client(caller);
                 if (caller_session) {
                     callsim::CallEvent rejection;
@@ -153,13 +152,35 @@ private:
                     rejection.mutable_emitter()->set_id(callee);
                     rejection.mutable_receiver()->set_id(caller);
                     rejection.set_session_id("sess_" + caller + "_" + callee);
-                    
+                    rejection.set_context("callee_unavailable");
+
                     std::string payload;
                     if (rejection.SerializeToString(&payload)) {
                         caller_session->deliver(payload);
                         std::cout << "[Server] Notified " << caller << " that " << callee << " is unavailable.\n";
                     }
                 }
+            }
+        } else {
+            callsim::CallEvent event;
+            if (event.ParseFromArray(read_buffer_.data(), read_buffer_.size())) {
+                if (event.signal() == callsim::REJECTED && event.context().empty()) {
+                    event.set_context("callee_rejected");
+                }
+                auto receiver_session = registry_->get_client(event.receiver().id());
+                if (receiver_session) {
+                    std::string payload;
+                    if (event.SerializeToString(&payload)) {
+                        receiver_session->deliver(payload);
+                    }
+                }
+                if (event.signal() == callsim::ACCEPTED) {
+                    std::cout << "[Server] Call accepted by " << event.emitter().id() << " for session " << event.session_id() << "\n";
+                } else if (event.signal() == callsim::REJECTED) {
+                    std::cout << "[Server] Call rejected by " << event.emitter().id() << " for session " << event.session_id() << "\n";
+                }
+            } else {
+                std::cerr << "[Server] Unknown message type received.\n";
             }
         }
         read_message_length();

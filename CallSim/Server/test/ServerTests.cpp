@@ -36,6 +36,19 @@ TEST(ServerRegistryTests, AddAndRetrieveClient) {
     EXPECT_EQ(missing_session, nullptr);
 }
 
+TEST(ServerRegistryTests, DuplicateRegistrationIsRejected) {
+    ClientRegistry registry;
+    auto first_session = std::make_shared<ClientSession>();
+    auto second_session = std::make_shared<ClientSession>();
+
+    first_session->handle_registration("client_beta");
+    second_session->handle_registration("client_beta");
+
+    EXPECT_TRUE(registry.register_client(first_session));
+    EXPECT_FALSE(registry.register_client(second_session));
+    EXPECT_EQ(registry.total_registered(), 1);
+}
+
 TEST(ServerSessionTests, NetworkCallbackFires) {
     ClientSession session;
     session.handle_registration("client_alpha");
