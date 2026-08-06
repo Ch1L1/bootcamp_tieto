@@ -3,6 +3,7 @@
 #include <vector>
 #include <memory>
 #include <thread>
+#include <functional>
 #include <arpa/inet.h>
 #include <boost/asio.hpp>
 #include "Message.pb.h"
@@ -29,6 +30,7 @@ private:
         std::cout << " /call <client_id>   - Call another client\n";
         std::cout << " /answer             - Accept an incoming call\n";
         std::cout << " /reject             - Decline an incoming call\n";
+        std::cout << " /hangup             - End the active call\n";
         std::cout << " /help               - Show this help message\n";
         std::cout << " /exit               - Disconnect\n";
         std::cout << "======================================\n";
@@ -84,6 +86,10 @@ private:
                 post_to_io([self = shared_from_this()]() {
                     self->do_reject_call();
                 });
+            } else if (input == "/hangup") {
+                post_to_io([self = shared_from_this()]() {
+                    self->do_hangup_call();
+                });
             } else {
                 std::cout << "[ERROR] Unknown command: '" << input << "'\n";
                 std::cout << "Type '/help' for available commands.\n";
@@ -128,8 +134,6 @@ private:
         active_session_id_ = incoming_session_id_;
         active_remote_id_ = incoming_caller_;
         std::cout << "==> Answering call from " << incoming_caller_ << "...\n";
-        fsm_.handle_transition(callsim::ACCEPTED);
-        has_incoming_call_ = false;
 
         callsim::CallEvent answer_event;
         answer_event.set_signal(callsim::ACCEPTED);
@@ -139,9 +143,20 @@ private:
 
         std::string payload;
         if (answer_event.SerializeToString(&payload)) {
-            send_message(std::vector<char>(payload.begin(), payload.end()));
-            std::cout << format_call_connected_message(active_remote_id_) << "\n";
-            print_prompt();
+            auto self(shared_from_this());
+            send_message(std::vector<char>(payload.begin(), payload.end()),
+                [self](bool send_succeeded) {
+                    if (!send_succeeded) {
+                        std::cout << "[ERROR] Answer message could not be sent, the incoming call remains pending.\n";
+                        self->print_prompt();
+                        return;
+                    }
+
+                    self->fsm_.handle_transition(callsim::ACCEPTED);
+                    self->has_incoming_call_ = false;
+                    std::cout << format_call_connected_message(self->active_remote_id_) << "\n";
+                    self->print_prompt();
+                });
         }
     }
 
@@ -153,8 +168,6 @@ private:
         }
 
         std::cout << "==> Rejecting call from " << incoming_caller_ << "...\n";
-        fsm_.handle_transition(callsim::REJECTED);
-        has_incoming_call_ = false;
 
         callsim::CallEvent reject_event;
         reject_event.set_signal(callsim::REJECTED);
@@ -165,9 +178,61 @@ private:
 
         std::string payload;
         if (reject_event.SerializeToString(&payload)) {
-            send_message(std::vector<char>(payload.begin(), payload.end()));
-            print_prompt();
+            auto self(shared_from_this());
+            send_message(std::vector<char>(payload.begin(), payload.end()),
+                [self](bool send_succeeded) {
+                    if (!send_succeeded) {
+                        std::cout << "[ERROR] Reject message could not be sent, the incoming call remains pending.\n";
+                        self->print_prompt();
+                        return;
+                    }
+
+                    self->fsm_.handle_transition(callsim::REJECTED);
+                    self->has_incoming_call_ = false;
+                    self->print_prompt();
+                });
         }
+    }
+
+    void do_hangup_call() {
+        if (fsm_.get_current_state() != callsim::CLIENT_TALKING) {
+            std::cout << "[ERROR] No active call to hang up!\n";
+            return;
+        }
+
+        std::cout << "==> Hanging up call with " << active_remote_id_ << "...\n";
+        callsim::CallEvent hangup_event;
+        hangup_event.set_signal(callsim::END);
+        hangup_event.mutable_emitter()->set_id(client_id_);
+        hangup_event.mutable_receiver()->set_id(active_remote_id_);
+        hangup_event.set_session_id(active_session_id_);
+
+        std::string payload;
+        if (hangup_event.SerializeToString(&payload)) {
+            auto self(shared_from_this());
+            send_message(std::vector<char>(payload.begin(), payload.end()),
+                [self](bool send_succeeded) {
+                    if (!send_succeeded) {
+                        std::cout << "[ERROR] Hangup message could not be sent, the call remains active.\n";
+                        self->print_prompt();
+                        return;
+                    }
+
+                    self->fsm_.finalize_hangup_transition(true);
+                    self->clear_active_call_state();
+                    std::cout << "[CALL ENDED] You hung up the call.\n";
+                    self->print_prompt();
+                });
+        }
+    }
+
+    void clear_active_call_state() {
+        has_incoming_call_ = false;
+        incoming_caller_.clear();
+        incoming_session_id_.clear();
+        pending_callee_.clear();
+        active_session_id_.clear();
+        active_remote_id_.clear();
     }
 
     void disconnect() {
@@ -175,28 +240,36 @@ private:
         socket_.close(ignored_ec);
     }
 
-    void send_message(const std::vector<char>& write_buf) {
+    void send_message(const std::vector<char>& write_buf, std::function<void(bool)> on_complete = {}) {
         if (!socket_.is_open()) {
             std::cerr << "Cannot send message: socket is closed.\n";
+            if (on_complete) {
+                on_complete(false);
+            }
             return;
         }
 
         auto copy = std::make_shared<std::vector<char>>(write_buf);
         auto self(shared_from_this());
-        boost::asio::post(socket_.get_executor(), [self, copy]() {
-            self->do_send_message(copy);
+        boost::asio::post(socket_.get_executor(), [self, copy, on_complete = std::move(on_complete)]() {
+            self->do_send_message(copy, std::move(on_complete));
         });
     }
 
-    void do_send_message(std::shared_ptr<std::vector<char>> buffer_ptr) {
+    void do_send_message(std::shared_ptr<std::vector<char>> buffer_ptr, std::function<void(bool)> on_complete) {
         uint32_t len_network = htonl(static_cast<uint32_t>(buffer_ptr->size()));
         buffer_ptr->insert(buffer_ptr->begin(),
             reinterpret_cast<char*>(&len_network),
             reinterpret_cast<char*>(&len_network) + sizeof(len_network));
 
         boost::asio::async_write(socket_, boost::asio::buffer(*buffer_ptr),
-            [self = shared_from_this(), buffer_ptr](boost::system::error_code ec, std::size_t) {
-                if (ec) std::cerr << "Failed to send message: " << ec.message() << "\n";
+            [self = shared_from_this(), buffer_ptr, on_complete = std::move(on_complete)](boost::system::error_code ec, std::size_t) {
+                if (ec) {
+                    std::cerr << "Failed to send message: " << ec.message() << "\n";
+                    if (on_complete) on_complete(false);
+                } else if (on_complete) {
+                    on_complete(true);
+                }
             });
     }
 
@@ -328,6 +401,14 @@ private:
                     pending_callee_.clear();
                     std::cout << "\n" << format_call_connected_message(active_remote_id_) << "\n";
                     print_prompt();
+                }
+            } else if (ring_alert.signal() == callsim::END) {
+                if (ring_alert.receiver().id() == client_id_ && fsm_.get_current_state() == callsim::CLIENT_TALKING) {
+                    std::cout << "\n[CALL ENDED] " << ring_alert.emitter().id() << " hung up.\n";
+                    fsm_.handle_transition(callsim::END);
+                    clear_active_call_state();
+                    std::cout << "> ";
+                    std::cout.flush();
                 }
             } else if (ring_alert.signal() == callsim::REJECTED) {
                 if (ring_alert.emitter().id() == pending_callee_) {

@@ -27,6 +27,17 @@ TEST(ClientFSMTests, IncomingCallSuccess) {
     EXPECT_EQ(fsm.get_current_state(), callsim::CLIENT_ANSWERING);
 }
 
+TEST(ClientFSMTests, TalkingEndsBackToRegistered) {
+    ClientStateMachine fsm;
+    fsm.handle_transition(callsim::REGISTERED);
+    fsm.handle_transition(callsim::CALL);
+    fsm.handle_transition(callsim::ACCEPTED);
+    EXPECT_EQ(fsm.get_current_state(), callsim::CLIENT_TALKING);
+
+    fsm.handle_transition(callsim::END);
+    EXPECT_EQ(fsm.get_current_state(), callsim::CLIENT_REGISTERED);
+}
+
 TEST(ClientFSMTests, InvalidTransitionThrows) {
     ClientStateMachine fsm;
     EXPECT_THROW(fsm.handle_transition(callsim::ANSWER), std::runtime_error);
@@ -62,5 +73,28 @@ TEST(ClientFSMTests, TalkingStateCanEndTheCall) {
     fsm.handle_transition(callsim::ACCEPTED);
     fsm.handle_transition(callsim::END);
 
+    EXPECT_EQ(fsm.get_current_state(), callsim::CLIENT_REGISTERED);
+}
+
+TEST(ClientFSMTests, CalleeSideHangupReturnsToRegistered) {
+    ClientStateMachine fsm;
+    fsm.handle_transition(callsim::REGISTERED);
+    fsm.handle_transition(callsim::ANSWERING);
+    fsm.handle_transition(callsim::ACCEPTED);
+    fsm.handle_transition(callsim::END);
+
+    EXPECT_EQ(fsm.get_current_state(), callsim::CLIENT_REGISTERED);
+}
+
+TEST(ClientFSMTests, HangupTransitionOnlyAppliesAfterSuccessfulSend) {
+    ClientStateMachine fsm;
+    fsm.handle_transition(callsim::REGISTERED);
+    fsm.handle_transition(callsim::CALL);
+    fsm.handle_transition(callsim::ACCEPTED);
+
+    fsm.finalize_hangup_transition(false);
+    EXPECT_EQ(fsm.get_current_state(), callsim::CLIENT_TALKING);
+
+    fsm.finalize_hangup_transition(true);
     EXPECT_EQ(fsm.get_current_state(), callsim::CLIENT_REGISTERED);
 }

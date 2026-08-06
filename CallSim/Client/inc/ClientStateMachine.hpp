@@ -45,6 +45,15 @@ public:
         current_state_->handle_signal(signal, *this);
     }
 
+    void finalize_hangup_transition(bool send_succeeded) {
+        if (!send_succeeded) {
+            return;
+        }
+        if (get_current_state() == callsim::CLIENT_TALKING) {
+            handle_transition(callsim::END);
+        }
+    }
+
     void print_history() const {
         std::cout << "[Client State History]: ";
         for (size_t i = 0; i < state_history_.size(); ++i) {
